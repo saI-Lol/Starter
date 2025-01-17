@@ -54,6 +54,8 @@ from torchvision.models.detection.mask_rcnn import MaskRCNN, MaskRCNNPredictor
 from torchvision.models.detection.roi_heads import RoIHeads
 from torchvision.transforms import functional as F
 from torch.distributed import init_process_group
+from torchvision.models.detection import MaskRCNN
+from torchvision.models.detection.backbone_utils import mobilenet_backbone
 
 # Settings
 pd.set_option("display.max_colwidth", None)
@@ -290,17 +292,21 @@ def get_unlabelled_dataset(folder_name):
             })
     return pd.DataFrame(data)
 
+# def get_maskrcnn_model(num_classes=5):
+#     model = maskrcnn_resnet50_fpn(pretrained=True)
+
+#     in_features = model.roi_heads.box_predictor.cls_score.in_features
+#     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+
+#     in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
+#     hidden_layer = 256
+#     model.roi_heads.mask_predictor = MaskRCNNPredictor(
+#         in_features_mask, hidden_layer, num_classes
+#     )
+#     return model
 def get_maskrcnn_model(num_classes=5):
-    model = maskrcnn_resnet50_fpn(pretrained=True)
-
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-
-    in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
-    hidden_layer = 256
-    model.roi_heads.mask_predictor = MaskRCNNPredictor(
-        in_features_mask, hidden_layer, num_classes
-    )
+    backbone = mobilenet_backbone(backbone_name="mobilenet_v2", pretrained=True, fpn=True)
+    model = MaskRCNN(backbone, num_classes=num_classes)
     return model
 
 
