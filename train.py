@@ -214,8 +214,8 @@ def create_prediction(model, test_loader, rank, submission_filename, score_thres
 
     sub_df = pd.DataFrame(rows)
     sub_df = sub_df.sort_values("id").reset_index(drop=True)
-    if rank == 0:
-        sub_df.to_csv(f"{submission_filename}.csv", index=False)
+    sub_df.to_csv(f"{submission_filename}_{rank}.csv", index=False)
+    
 
 
 
