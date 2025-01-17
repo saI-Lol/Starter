@@ -154,6 +154,69 @@ def evaluate(model, holdout_loader, rank):
         )
 
 
+def predict_and_count(model, data_loader, score_threshold):
+    model.eval()
+    image_counts = []
+
+    damage_class_to_id = {
+        "no-damage": 1,
+        "minor-damage": 2,
+        "major-damage": 3,
+        "destroyed": 4,
+    }
+    id_to_damage_class = {v: k for k, v in damage_class_to_id.items()}
+
+    with torch.no_grad():
+        for imgs, img_ids in tqdm(
+            data_loader, desc="Inference"
+        ):
+            imgs = [img.cuda() for img in imgs]
+            outputs = model(imgs)
+
+            for i, output in enumerate(outputs):
+                img_id = img_ids[i]
+                scores = output["scores"].cpu()
+                keep = scores >= score_threshold
+                labels = output["labels"][keep].cpu().numpy()
+
+                counts = {class_name: 0 for class_name in damage_class_to_id.keys()}
+                for label in labels:
+                    class_name = id_to_damage_class.get(label, "unknown")
+                    if class_name in counts:
+                        counts[class_name] += 1
+
+                image_counts.append({"img_id": img_id, "counts": counts})
+
+    return image_counts
+
+
+
+def create_prediction(model, test_loader, rank, submission_filename, score_threshold):
+    damage_class_to_id = {
+        "no-damage": 1,
+        "minor-damage": 2,
+        "major-damage": 3,
+        "destroyed": 4,
+    }
+    id_to_damage_class = {v: k for k, v in damage_class_to_id.items()}
+    predictions = predict_and_count(model, test_loader, score_threshold)
+
+    rows = []
+    for entry in predictions:
+        img_id = entry["img_id"]
+        counts = entry["counts"]
+
+        for damage_class, count in counts.items():
+            damage_class_formatted = damage_class.replace("-", "_")
+            row_id = f"{img_id}_X_{damage_class_formatted}"
+            rows.append({"id": row_id, "target": count})
+
+    sub_df = pd.DataFrame(rows)
+    sub_df = sub_df.sort_values("id").reset_index(drop=True)
+    if rank == 0:
+        sub_df.to_csv(f"{submission_filename}.csv", index=False)
+
+
 
 def main(rank, world_size, args):
     ddp_setup(rank, world_size)
@@ -167,6 +230,7 @@ def main(rank, world_size, args):
     train_dataset = BuildingDataset(train_df, resize_size=(args.imgsz, args.imgsz))
     val_dataset = BuildingDataset(val_df, resize_size=(args.imgsz, args.imgsz))
     holdout_dataset = BuildingDataset(hold_df, resize_size=(args.imgsz, args.imgsz))
+    test_dataset = TestDataset(test_df, resize_size=(args.imgsz, args.imgsz))
 
     train_loader = DataLoader(
         train_dataset,
@@ -195,6 +259,15 @@ def main(rank, world_size, args):
         sampler = DistributedSampler(holdout_dataset)
     )
 
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=args.val_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        collate_fn=test_collate_fn,
+        sampler = DistributedSampler(test_dataset)
+    )
+
     model = get_maskrcnn_model(num_classes=5)
     model = model.cuda()
     model = model.to(rank)
@@ -208,6 +281,7 @@ def main(rank, world_size, args):
         train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, rank)
         val_epoch(epoch, num_epochs, model, valid_loader, rank)
     evaluate(model, holdout_loader, rank)
+    create_prediction(model, test_loader, rank, args.submission_filename, args.score_threshold)
     destroy_process_group()
 
 if __name__ == '__main__':
@@ -217,6 +291,8 @@ if __name__ == '__main__':
     parser.add_argument("--val-batch-size", type=int, default=4, help="Batch size for validation")
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs to train")
     parser.add_argument("--imgsz", type=int, default=512, help="Image size for training")
+    parser.add_argument("--submission-filename", type=str, default="submission", help="Name of submission file")
+    parser.add_argument("--score-threshold", type=float, default=0.5, help="Score threshold for predictions")
     args = parser.parse_args()
     world_size = torch.cuda.device_count()
     mp.spawn(main, args=(world_size, args), nprocs=world_size)

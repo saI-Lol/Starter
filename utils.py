@@ -91,7 +91,7 @@ class Resize(object):
 
 class BuildingDataset(Dataset):
     def __init__(self, df, resize_size=(512, 512)):
-        self.df = df
+        self.df = df.reset_index(drop=True)
         self.resize_size = resize_size
         self.damage_class_to_id = {
             "no-damage": 1,
@@ -198,6 +198,73 @@ class BuildingDataset(Dataset):
     def _clip_polygon_to_image(self, polygon, width, height):
         image_box = box(0, 0, width, height)
         return polygon.intersection(image_box)
+
+
+class TestDataset(Dataset):
+    def __init__(self, df, resize_size=(512, 512)):
+        self.df = df.reset_index(drop=True)
+        self.resize_size = resize_size
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        img_path = row.post_image_path
+        img_id = row.id
+
+        with rasterio.open(img_path) as src:
+            img_array = src.read()
+            img_array = np.transpose(img_array, (1, 2, 0)).astype(np.uint8)
+            img = Image.fromarray(img_array)
+
+        img = F.resize(img, self.resize_size)
+        img = F.to_tensor(img)
+
+        return {
+            "img": img,
+            "img_id": img_id
+        }
+
+    def __len__(self):
+        return len(self.df)
+
+
+def test_collate_fn(batch):
+    imgs = [item["img"] for item in batch]
+    img_ids = [item["img_id"] for item in batch]
+
+    return imgs, img_ids
+
+
+def predict_and_count(model, data_loader, device, score_threshold=0.5):
+    model.eval()
+    image_counts = []
+
+    with torch.no_grad():
+        for imgs, img_ids in tqdm(
+            data_loader, desc="Inference"
+        ):
+            imgs = [img.to(device) for img in imgs]
+            outputs = model(imgs)
+
+            for i, output in enumerate(outputs):
+                img_id = img_ids[i]
+                scores = output["scores"].cpu()
+                keep = scores >= score_threshold
+                labels = output["labels"][keep].cpu().numpy()
+
+                counts = {class_name: 0 for class_name in damage_class_to_id.keys()}
+                for label in labels:
+                    class_name = id_to_damage_class.get(label, "unknown")
+                    if class_name in counts:
+                        counts[class_name] += 1
+
+                image_counts.append({"img_id": img_id, "counts": counts})
+
+    return image_counts
+
+
+device = "cuda"
+model.eval()
+predictions = predict_and_count(model, test_loader, device, score_threshold=0.5)
 
 
 def get_labelled_dataset(folder_name):
