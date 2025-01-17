@@ -93,35 +93,35 @@ def train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, ra
     scheduler.step()
 
 def val_epoch(epoch, num_epochs, model, valid_loader, rank):    
-        model.eval()
-        sum_abs_diff_per_class = {c: 0 for c in range(1, 5)}
-        total_images = 0
+    model.eval()
+    sum_abs_diff_per_class = {c: 0 for c in range(1, 5)}
+    total_images = 0
 
-        with torch.no_grad():
-            for batch_idx, batch in enumerate(tqdm(valid_loader)):
-                imgs, targets = batch
-                imgs = [img.cuda() for img in imgs]
-                predictions = model(imgs)
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(tqdm(valid_loader)):
+            imgs, targets = batch
+            imgs = [img.cuda() for img in imgs]
+            predictions = model(imgs)
 
-                for pred, gt in zip(predictions, targets):
-                    pred_counts = {
-                        c: (pred["labels"] == c).sum().item() for c in range(1, 5)
-                    }
-                    gt_counts = {c: (gt["labels"] == c).sum().item() for c in range(1, 5)}
+            for pred, gt in zip(predictions, targets):
+                pred_counts = {
+                    c: (pred["labels"] == c).sum().item() for c in range(1, 5)
+                }
+                gt_counts = {c: (gt["labels"] == c).sum().item() for c in range(1, 5)}
 
-                    for c in range(1, 5):
-                        diff = abs(pred_counts[c] - gt_counts[c])
-                        sum_abs_diff_per_class[c] += diff
+                for c in range(1, 5):
+                    diff = abs(pred_counts[c] - gt_counts[c])
+                    sum_abs_diff_per_class[c] += diff
 
-                    total_images += 1
+                total_images += 1
 
-        mae_per_class = {c: sum_abs_diff_per_class[c] / total_images for c in range(1, 5)}
-        overall_mae = sum(mae_per_class.values()) / len(mae_per_class)
-        if rank == 0:
-            print(f"Epoch [{epoch+1}/{num_epochs}] Validation MAE per class: {mae_per_class}")
-            print(
-                f"Epoch [{epoch+1}/{num_epochs}] Validation Overall MAE: {overall_mae:.4f} \n"
-            )
+    mae_per_class = {c: sum_abs_diff_per_class[c] / total_images for c in range(1, 5)}
+    overall_mae = sum(mae_per_class.values()) / len(mae_per_class)
+    if rank == 0:
+        print(f"Epoch [{epoch+1}/{num_epochs}] Validation MAE per class: {mae_per_class}")
+        print(
+            f"Epoch [{epoch+1}/{num_epochs}] Validation Overall MAE: {overall_mae:.4f} \n"
+        )
 
 def evaluate(model, holdout_loader, rank):
     model.eval()
