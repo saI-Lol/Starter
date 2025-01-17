@@ -122,13 +122,13 @@ def val_epoch(epoch, num_epochs, model, valid_loader, rank):
                 f"Epoch [{epoch+1}/{num_epochs}] Validation Overall MAE: {overall_mae:.4f} \n"
             )
 
-def evaluate(model, test_loader, rank):
+def evaluate(model, holdout_loader, rank):
     model.eval()
     sum_abs_diff_per_class = {c: 0 for c in range(1, 5)}
     total_images = 0
 
     with torch.no_grad():
-        for batch_idx, batch in enumerate(tqdm(test_loader)):
+        for batch_idx, batch in enumerate(tqdm(holdout_loader)):
             imgs, targets = batch
             imgs = [img.cuda() for img in imgs]
             predictions = model(imgs)
@@ -186,7 +186,7 @@ def main(rank, world_size, args):
         sampler = DistributedSampler(val_dataset)
     )
 
-    test_loader = DataLoader(
+    holdout_loader = DataLoader(
         holdout_dataset,
         batch_size=args.val_batch_size,
         shuffle=False,
@@ -207,7 +207,7 @@ def main(rank, world_size, args):
     for epoch in range(num_epochs):
         train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, rank)
         val_epoch(epoch, num_epochs, model, valid_loader, rank)
-    evaluate(model, test_loader, rank)
+    evaluate(model, holdout_loader, rank)
     destroy_process_group()
 
 if __name__ == '__main__':
