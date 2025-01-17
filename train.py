@@ -277,12 +277,19 @@ def main(rank, world_size, args):
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[15, 29, 43, 53, 65, 80, 90, 100, 110, 130, 150, 170, 180, 190], gamma=0.5)
     num_epochs = args.epochs
 
-    for epoch in range(num_epochs):
-        train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, rank)
-        val_epoch(epoch, num_epochs, model, valid_loader, rank)
-    evaluate(model, holdout_loader, rank)
-    create_prediction(model, test_loader, rank, args.submission_filename, args.score_threshold)
-    destroy_process_group()
+    try:
+        for epoch in range(num_epochs):
+            train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, rank)
+            val_epoch(epoch, num_epochs, model, valid_loader, rank)
+        evaluate(model, holdout_loader, rank)
+        create_prediction(model, test_loader, rank, args.submission_filename, args.score_threshold)
+        destroy_process_group()
+    except Exception as e:
+        if rank == 0:
+            print(f"Error: {str(e)}")
+        destroy_process_group()
+        raise e
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training Starter Notebook model")
