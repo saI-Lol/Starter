@@ -224,7 +224,7 @@ def main(rank, world_size, args):
     tier1_df = get_labelled_dataset('tier1')
     tier3_df = get_labelled_dataset('tier3')
     # train_df = pd.concat([tier1_df, tier3_df])
-    train_df = tier3_df.copy()
+    train_df = tier1_df.copy()
     hold_df = get_labelled_dataset('hold')
     val_df = get_labelled_dataset('test')
     test_df = get_unlabelled_dataset('predict')
