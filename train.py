@@ -222,8 +222,9 @@ def create_prediction(model, test_loader, rank, submission_filename, score_thres
 def main(rank, world_size, args):
     ddp_setup(rank, world_size)
     tier1_df = get_labelled_dataset('tier1')
-    tier3_df = get_labelled_dataset('tier3')
-    train_df = pd.concat([tier1_df, tier3_df])
+    # tier3_df = get_labelled_dataset('tier3')
+    # train_df = pd.concat([tier1_df, tier3_df])
+    train_df = tier1_df.copy()
     hold_df = get_labelled_dataset('hold')
     val_df = get_labelled_dataset('test')
     test_df = get_unlabelled_dataset('predict')
