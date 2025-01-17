@@ -82,6 +82,7 @@ def train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, ra
             losses_dict = model(imgs, targets)
             losses = sum(loss for loss in losses_dict.values())
 
+        del imgs, targets, batch
         iterator.set_description(f"Epoch [{epoch+1}/{num_epochs}] Loss: {losses.item():.4f}")
 
         optimizer.zero_grad()
@@ -281,6 +282,7 @@ def main(rank, world_size, args):
         for epoch in range(num_epochs):
             train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, rank)
             val_epoch(epoch, num_epochs, model, valid_loader, rank)
+            torch.cuda.empty_cache()
         evaluate(model, holdout_loader, rank)
         create_prediction(model, test_loader, rank, args.submission_filename, args.score_threshold)
         destroy_process_group()
