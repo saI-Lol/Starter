@@ -122,6 +122,38 @@ def val_epoch(epoch, num_epochs, model, valid_loader, rank):
                 f"Epoch [{epoch+1}/{num_epochs}] Validation Overall MAE: {overall_mae:.4f} \n"
             )
 
+def evaluate(model, test_loader, rank):
+    model.eval()
+    sum_abs_diff_per_class = {c: 0 for c in range(1, 5)}
+    total_images = 0
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(tqdm(test_loader)):
+            imgs, targets = batch
+            imgs = [img.cuda() for img in imgs]
+            predictions = model(imgs)
+
+            for pred, gt in zip(predictions, targets):
+                pred_counts = {
+                    c: (pred["labels"] == c).sum().item() for c in range(1, 5)
+                }
+                gt_counts = {c: (gt["labels"] == c).sum().item() for c in range(1, 5)}
+
+                for c in range(1, 5):
+                    diff = abs(pred_counts[c] - gt_counts[c])
+                    sum_abs_diff_per_class[c] += diff
+
+                total_images += 1
+
+    mae_per_class = {c: sum_abs_diff_per_class[c] / total_images for c in range(1, 5)}
+    overall_mae = sum(mae_per_class.values()) / len(mae_per_class)
+    if rank == 0:
+        print(f"Test MAE per class: {mae_per_class}")
+        print(
+            f"Test Overall MAE: {overall_mae:.4f} \n"
+        )
+
+
 
 def main(rank, world_size, args):
     ddp_setup(rank, world_size)
@@ -154,6 +186,15 @@ def main(rank, world_size, args):
         sampler = DistributedSampler(val_dataset)
     )
 
+    test_loader = DataLoader(
+        holdout_dataset,
+        batch_size=args.val_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        collate_fn=collate_fn,
+        sampler = DistributedSampler(holdout_dataset)
+    )
+
     model = get_maskrcnn_model(num_classes=5)
     model = model.cuda()
     model = model.to(rank)
@@ -166,6 +207,7 @@ def main(rank, world_size, args):
     for epoch in range(num_epochs):
         train_epoch(epoch, num_epochs, model, optimizer, scheduler, train_loader, rank)
         val_epoch(epoch, num_epochs, model, valid_loader, rank)
+    evaluate(model, test_loader, rank)
     destroy_process_group()
 
 if __name__ == '__main__':
