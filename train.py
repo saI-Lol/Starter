@@ -215,16 +215,16 @@ def create_prediction(model, test_loader, rank, submission_filename, score_thres
     sub_df = pd.DataFrame(rows)
     sub_df = sub_df.sort_values("id").reset_index(drop=True)
     sub_df.to_csv(f"{submission_filename}_{rank}.csv", index=False)
-    
+
 
 
 
 def main(rank, world_size, args):
     ddp_setup(rank, world_size)
     tier1_df = get_labelled_dataset('tier1')
-    # tier3_df = get_labelled_dataset('tier3')
+    tier3_df = get_labelled_dataset('tier3')
     # train_df = pd.concat([tier1_df, tier3_df])
-    train_df = tier1_df.copy()
+    train_df = tier3_df.copy()
     hold_df = get_labelled_dataset('hold')
     val_df = get_labelled_dataset('test')
     test_df = get_unlabelled_dataset('predict')
