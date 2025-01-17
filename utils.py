@@ -262,11 +262,6 @@ def predict_and_count(model, data_loader, device, score_threshold=0.5):
     return image_counts
 
 
-device = "cuda"
-model.eval()
-predictions = predict_and_count(model, test_loader, device, score_threshold=0.5)
-
-
 def get_labelled_dataset(folder_name):
     data = []
     root = f"/kaggle/input/{folder_name}-xview-geotiffdata/{folder_name}"
