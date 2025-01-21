@@ -173,7 +173,7 @@ def save_model(model, epoch, mae):
     }, "model_best.pth")
     print(f"Successfully saved model with MAE: {mae:.4f}")
 
-def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS):    
+def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, score_threshold):    
     model.eval()
     total_images = 0
     diff_sum = 0
@@ -185,18 +185,22 @@ def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS):
             predictions = model(imgs)
 
             for pred, gt in zip(predictions, targets):
-                pred_counts = (pred["labels"] == 1).sum().item()
+                # pred_counts = (pred["labels"] == 1).sum().item()
+                bool_mask = pred['scores'] >= score_threshold
+                pred_counts = (pred["labels"][bool_mask] == 1).sum().item()
                 gt_counts = (gt["labels"] == 1).sum().item()
                 diff = abs(pred_counts - gt_counts)
                 diff_sum += diff
                 total_images += 1
 
-    mae = diff_sum / total_images      
-    print(f"Epoch [{epoch+1}/{num_epochs}] Validation MAE: {mae:.4f} Best MAE: {MIN_LOSS:.4f}\n")
+    mae = diff_sum / total_images    
     if MIN_LOSS is None or mae < MIN_LOSS:
-        save_model(model, epoch, mae)
+        MIN_LOSS = mae
+        save_model(model, epoch, mae)  
+    print(f"Epoch [{epoch+1}/{num_epochs}] Threshold: {score_threshold} Validation MAE: {mae:.4f} Best MAE: {MIN_LOSS:.4f}\n")
+    
 
-def evaluate(model, test_loader, rank):    
+def evaluate(model, test_loader, rank, score_threshold):    
     model.eval()
     total_images = 0
     diff_sum = 0
@@ -208,14 +212,16 @@ def evaluate(model, test_loader, rank):
             predictions = model(imgs)
 
             for pred, gt in zip(predictions, targets):
-                pred_counts = (pred["labels"] == 1).sum().item()
+                # pred_counts = (pred["labels"] == 1).sum().item()
+                bool_mask = pred['scores'] >= score_threshold
+                pred_counts = (pred["labels"][bool_mask] == 1).sum().item()
                 gt_counts = (gt["labels"] == 1).sum().item()
                 diff = abs(pred_counts - gt_counts)
                 diff_sum += diff
                 total_images += 1
 
     mae = diff_sum / total_images      
-    print(f"Test MAE: {mae:.4f}\n")
+    print(f"Threshold: {score_threshold} Test MAE: {mae:.4f}\n")
     if rank == 0:    
         torch.save(model.state_dict(), f"model_last.pth")
 

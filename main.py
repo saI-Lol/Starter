@@ -130,9 +130,9 @@ def main(rank, world_size, args):
     try:
         for epoch in range(num_epochs):
             train_epoch(epoch, num_epochs, model, optimizer, train_loader, rank)
-            validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS)
+            validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, args.score_threshold)
             torch.cuda.empty_cache()
-        evaluate(model, holdout_loader, rank)
+        evaluate(model, holdout_loader, rank, args.score_threshold)
         # predict(model, test_loader, rank, args.submission_filename, args.score_threshold)
         destroy_process_group()
     except Exception as e:
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     parser.add_argument("--epochs", type=int, default=10, help="Number of epochs to train")
     parser.add_argument("--imgsz", type=int, default=512, help="Image size for training")
     parser.add_argument("--submission-filename", type=str, default="submission", help="Name of submission file")
-    parser.add_argument("--score-threshold", type=float, default=0.5, help="Score threshold for predictions")
+    parser.add_argument("--score-threshold", type=float, required=True, help="Score threshold for predictions")
     args = parser.parse_args()
     world_size = torch.cuda.device_count()
     mp.spawn(main, args=(world_size, args), nprocs=world_size)
