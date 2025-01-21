@@ -140,7 +140,6 @@ def main(rank, world_size, args):
             print(f"Error: {str(e)}")
             evaluate(model, holdout_loader, rank, args.score_threshold)
         destroy_process_group()
-        raise e
     
 
 if __name__ == '__main__':
