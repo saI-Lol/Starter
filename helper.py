@@ -194,10 +194,10 @@ def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, score
                 total_images += 1
 
     mae = diff_sum / total_images    
-    if MIN_LOSS is None or mae < MIN_LOSS:
+    if rank == 0 and MIN_LOSS is None or mae < MIN_LOSS:
         MIN_LOSS = mae
         save_model(model, epoch, mae)  
-    print(f"GPU: {rank} Epoch [{epoch+1}/{num_epochs}] Threshold: {score_threshold} Validation MAE: {mae:.4f} Best MAE: {MIN_LOSS:.4f}\n")
+        print(f"GPU: {rank} Epoch [{epoch+1}/{num_epochs}] Threshold: {score_threshold} Validation MAE: {mae:.4f} Best MAE: {MIN_LOSS:.4f}\n")
 
 
 def evaluate(model, test_loader, rank, score_threshold):    
@@ -220,9 +220,10 @@ def evaluate(model, test_loader, rank, score_threshold):
                 diff_sum += diff
                 total_images += 1
 
-    mae = diff_sum / total_images      
-    print(f"GPU: {rank} Threshold: {score_threshold} Test MAE: {mae:.4f}\n")
-    if rank == 0:    
+    mae = diff_sum / total_images     
+    
+    if rank == 0:   
+        print(f"GPU: {rank} Threshold: {score_threshold} Test MAE: {mae:.4f}\n") 
         torch.save(model.state_dict(), f"model_last.pth")
 
 
