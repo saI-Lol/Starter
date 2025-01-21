@@ -57,11 +57,17 @@ from torch.distributed import init_process_group
 from torchvision.models.detection import MaskRCNN
 from torchvision.models.detection.backbone_utils import mobilenet_backbone
 
-# Settings
-pd.set_option("display.max_colwidth", None)
-pd.set_option("display.max_columns", None)
-warnings.filterwarnings("ignore")
+def collate_fn(batch):
+    imgs = [item["img"] for item in batch]
+    targets = [item["target"] for item in batch]
+    return imgs, targets
 
+def test_collate_fn(batch):
+    imgs = [item["img"] for item in batch]
+    img_ids = [item["img_id"] for item in batch]
+
+    return imgs, img_ids
+    
 class Resize(object):
     def __init__(self, size):
         self.size = size
@@ -95,16 +101,10 @@ class BuildingDataset(Dataset):
     def __init__(self, df, resize_size=(512, 512)):
         self.df = df.reset_index(drop=True)
         self.resize_size = resize_size
-        self.damage_class_to_id = {
-            "no-damage": 1,
-            "minor-damage": 2,
-            "major-damage": 3,
-            "destroyed": 4,
-        }
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img_path = row.post_image_path
+        img_path = row.pre_image_path
         label_path = row.post_label_path
         image_id = torch.tensor([idx])
 
@@ -125,8 +125,6 @@ class BuildingDataset(Dataset):
 
         for annotation in annotations:
             properties = annotation["properties"]
-            subtype = properties["subtype"]
-            damage_label = self.damage_class_to_id.get(subtype, 0)
 
             polygon_wkt = annotation["wkt"]
             polygon = loads(polygon_wkt)
@@ -140,7 +138,7 @@ class BuildingDataset(Dataset):
 
             xmin, ymin, xmax, ymax = polygon.bounds
             boxes.append([xmin, ymin, xmax, ymax])
-            labels.append(damage_label)
+            labels.append(1)
 
             mask = self._polygon_to_mask(polygon, width, height)
             masks.append(mask)
@@ -209,7 +207,7 @@ class TestDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
-        img_path = row.post_image_path
+        img_path = row.pre_image_path
         img_id = row.id
 
         with rasterio.open(img_path) as src:
@@ -227,92 +225,3 @@ class TestDataset(Dataset):
 
     def __len__(self):
         return len(self.df)
-
-
-def test_collate_fn(batch):
-    imgs = [item["img"] for item in batch]
-    img_ids = [item["img_id"] for item in batch]
-
-    return imgs, img_ids
-
-
-def predict_and_count(model, data_loader, device, score_threshold=0.5):
-    model.eval()
-    image_counts = []
-
-    with torch.no_grad():
-        for imgs, img_ids in tqdm(
-            data_loader, desc="Inference"
-        ):
-            imgs = [img.to(device) for img in imgs]
-            outputs = model(imgs)
-
-            for i, output in enumerate(outputs):
-                img_id = img_ids[i]
-                scores = output["scores"].cpu()
-                keep = scores >= score_threshold
-                labels = output["labels"][keep].cpu().numpy()
-
-                counts = {class_name: 0 for class_name in damage_class_to_id.keys()}
-                for label in labels:
-                    class_name = id_to_damage_class.get(label, "unknown")
-                    if class_name in counts:
-                        counts[class_name] += 1
-
-                image_counts.append({"img_id": img_id, "counts": counts})
-
-    return image_counts
-
-
-def get_labelled_dataset(folder_name):
-    data = []
-    root = f"/kaggle/input/{folder_name}-xview-geotiffdata/{folder_name}"
-    for filename in sorted(os.listdir(f"{root}/images")):        
-        if 'post' in filename:
-            ID = '_'.join(filename.split('_')[:-2])
-            image_path = f"{root}/images/{filename}"
-            label_path = f"{root}/labels/{filename.replace('.tif', '.json')}"
-            data.append({
-                'id':ID,
-                'post_image_path':image_path,
-                'post_label_path':label_path
-            })
-    return pd.DataFrame(data)
-
-def get_unlabelled_dataset(folder_name):
-    data = []
-    root = f"/kaggle/input/{folder_name}-xview-geotiffdata"
-    for filename in sorted(os.listdir(f"{root}/Images")):        
-        if 'post' in filename:
-            ID = '_'.join(filename.split('_')[:-2])
-            image_path = f"{root}/Images/{filename}"
-            data.append({
-                'id':ID,
-                'post_image_path':image_path
-            })
-    return pd.DataFrame(data)
-
-def get_maskrcnn_model(num_classes=5):
-    model = maskrcnn_resnet50_fpn(pretrained=True)
-
-    in_features = model.roi_heads.box_predictor.cls_score.in_features
-    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-
-    in_features_mask = model.roi_heads.mask_predictor.conv5_mask.in_channels
-    hidden_layer = 256
-    model.roi_heads.mask_predictor = MaskRCNNPredictor(
-        in_features_mask, hidden_layer, num_classes
-    )
-    return model
-
-
-def collate_fn(batch):
-    imgs = [item["img"] for item in batch]
-    targets = [item["target"] for item in batch]
-    return imgs, targets
-
-def ddp_setup(rank: int, world_size: int):
-   os.environ["MASTER_ADDR"] = "localhost"
-   os.environ["MASTER_PORT"] = "12355"
-   torch.cuda.set_device(rank)
-   init_process_group(backend="nccl", rank=rank, world_size=world_size)
