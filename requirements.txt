@@ -1,3 +1,4 @@
 pystac_client
 rasterio
 rioxarray
+torch
