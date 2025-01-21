@@ -138,7 +138,7 @@ def main(rank, world_size, args):
     except Exception as e:
         if rank == 0:
             print(f"Error: {str(e)}")
-            evaluate(model, holdout_loader, rank)
+            evaluate(model, holdout_loader, rank, args.score_threshold)
         destroy_process_group()
         raise e
     
