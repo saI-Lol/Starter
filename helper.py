@@ -33,6 +33,8 @@ from rasterio.transform import from_bounds
 from shapely import wkt
 from shapely.geometry import Polygon, box
 from shapely.wkt import loads
+from torch.amp import autocast, GradScaler
+import torch.optim.lr_scheduler as lr_scheduler
 
 # AWS
 import boto3
