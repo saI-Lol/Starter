@@ -1,4 +1,3 @@
-git clone https://github.com/saI-Lol/Starter.git
 cd Starter
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv
