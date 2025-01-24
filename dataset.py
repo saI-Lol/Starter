@@ -126,7 +126,7 @@ class BuildingDataset(Dataset):
 
         for annotation in annotations:
             properties = annotation["properties"]
-            subtype = properties["subtype"]
+            subtype = properties["subtype"].replace("-", "_")
             if subtype not in self.classes:
                 continue
             polygon_wkt = annotation["wkt"]
