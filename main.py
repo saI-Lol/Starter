@@ -135,7 +135,7 @@ def main(rank, world_size, args):
             torch.cuda.empty_cache()
         evaluate(model, holdout_loader, rank, args.score_threshold, classes)
         torch.cuda.empty_cache()
-        predict(model, test_loader, rank, args.score_threshold, classes)
+        # predict(model, test_loader, rank, args.score_threshold, classes)
         destroy_process_group()
     except Exception as e:
         if rank == 0:
