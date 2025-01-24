@@ -119,7 +119,7 @@ def main(rank, world_size, args):
         sampler = DistributedSampler(test_dataset)
     )
 
-    model = get_maskrcnn_model(num_classes=len(classes))
+    model = get_maskrcnn_model(num_classes=len(classes) + 1)
     model = model.cuda()
     model = model.to(rank)
     model = DDP(model, device_ids=[rank])
