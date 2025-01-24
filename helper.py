@@ -247,5 +247,41 @@ def evaluate(model, test_loader, rank, score_threshold, classes):
         torch.save(model.state_dict(), f"model_last.pth")
 
 
-def predict(model, data_loader, score_threshold):
-    pass
+def predict(model, data_loader, rank, score_threshold, classes):
+    model.eval()
+    predictions = []
+
+    with torch.no_grad():
+        for imgs, img_ids in tqdm(
+            data_loader, desc="Inference"
+        ):
+            imgs = [img.to(rank) for img in imgs]
+            outputs = model(imgs)
+
+            for i, output in enumerate(outputs):
+                img_id = img_ids[i]
+                scores = output["scores"].cpu()
+                keep = scores >= score_threshold
+                labels = output["labels"][keep].cpu().numpy()
+                boxes = output["boxes"][keep].cpu().numpy()
+                masks = output["masks"][keep].cpu().numpy()
+                scores = scores[keep].cpu().numpy()
+
+                for label, box, mask, score in zip(labels, boxes, masks, scores):
+                    xmin, ymin, xmax, ymax = box
+                    class_name = classes[label - 1]
+                    predictions.append(
+                        {
+                            "Image_ID": img_id,
+                            "class": class_name,
+                            "confidence": score,
+                            "xmin": xmin,
+                            "ymin": ymin,
+                            "xmax": xmax,
+                            "ymax": ymax,
+                            "mask": mask,
+                        }
+                    )
+    df = pd.DataFrame(predictions)
+    sub_id = ''.join(str(uuid4()).split("-")[:3]) + '_' + '_'.join(classes) + '.csv'
+    df.to_csv(sub_id, index=False)
