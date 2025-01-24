@@ -119,7 +119,7 @@ def main(rank, world_size, args):
         sampler = DistributedSampler(test_dataset)
     )
 
-    model = get_maskrcnn_model(num_classes=5)
+    model = get_maskrcnn_model(num_classes=len(classes))
     model = model.cuda()
     model = model.to(rank)
     model = DDP(model, device_ids=[rank])
@@ -134,7 +134,7 @@ def main(rank, world_size, args):
             validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, args.score_threshold, classes)
             torch.cuda.empty_cache()
         evaluate(model, holdout_loader, rank, args.score_threshold, classes)
-        # predict(model, test_loader, rank, args.submission_filename, args.score_threshold)
+        # predict(model, test_loader, rank, args.score_threshold)
         destroy_process_group()
     except Exception as e:
         if rank == 0:
@@ -149,7 +149,6 @@ if __name__ == '__main__':
     parser.add_argument("--val-batch-size", type=int, default=4, help="Batch size for validation")
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train")
     parser.add_argument("--imgsz", type=int, default=512, help="Image size for training")
-    parser.add_argument("--submission-filename", type=str, default="submission", help="Name of submission file")
     parser.add_argument("--score-threshold", type=float, required=True, help="Score threshold for predictions")
     parser.add_argument("--classes", type=str, nargs="+", default=["no_damage", "minor_damage", "major_damage", "destroyed"], help="Classes to predict")
     args = parser.parse_args()
