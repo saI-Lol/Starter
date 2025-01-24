@@ -205,10 +205,9 @@ def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, score
     total_mae = sum(class_mae.values()) / len(class_mae)    
     if (rank == 0 ) and (MIN_LOSS is None or total_mae < MIN_LOSS):
         MIN_LOSS = total_mae
-        save_model(model, epoch, total_mae)  
-        print(f"GPU: {rank} Epoch [{epoch+1}/{num_epochs}] Threshold: {score_threshold}\
-         Validation MAE: {total_mae:.4f} Best MAE: {MIN_LOSS:.4f} "+\
-         " ".join([f"{class_name}: {mae:.4f}" for class_name, mae in class_mae.items()])+"\n")
+        save_model(model, epoch, total_mae)
+        print(f"GPU: {rank} Epoch [{epoch+1}/{num_epochs}] Threshold: {score_threshold} Validation MAE: {total_mae:.4f} Best MAE: {MIN_LOSS:.4f} "+\
+        " ".join([f"{class_name}: {mae:.4f}" for class_name, mae in class_mae.items()])+"\n")
 
 
 def evaluate(model, test_loader, rank, score_threshold, classes):    
@@ -255,7 +254,7 @@ def predict(model, data_loader, rank, score_threshold, classes):
         for imgs, img_ids in tqdm(
             data_loader, desc="Inference"
         ):
-            imgs = [img.to(rank) for img in imgs]
+            imgs = [img.cuda() for img in imgs]
             outputs = model(imgs)
 
             for i, output in enumerate(outputs):
@@ -283,5 +282,5 @@ def predict(model, data_loader, rank, score_threshold, classes):
                         }
                     )
     df = pd.DataFrame(predictions)
-    sub_id = ''.join(str(uuid4()).split("-")[:3]) + '_' + '_'.join(classes) + '.csv'
+    sub_id = ''.join(str(uuid4()).split("-")[:3]) + f'_{rank}_' + '_'.join(classes) + '.csv'
     df.to_csv(sub_id, index=False)
