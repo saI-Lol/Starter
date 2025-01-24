@@ -69,17 +69,18 @@ from dataset import BuildingDataset, collate_fn, TestDataset, test_collate_fn
 
 def main(rank, world_size, args):
     ddp_setup(rank, world_size)
+    classes = args.classes
     tier1_df = get_labelled_dataset('tier1')
     tier3_df = get_labelled_dataset('tier3')
     # train_df = pd.concat([tier1_df, tier3_df])
-    train_df = tier3_df
+    train_df = tier1_df
     hold_df = get_labelled_dataset('hold')
     val_df = get_labelled_dataset('test')
     test_df = get_unlabelled_dataset('predict')
 
-    train_dataset = BuildingDataset(train_df, resize_size=(args.imgsz, args.imgsz))
-    val_dataset = BuildingDataset(val_df, resize_size=(args.imgsz, args.imgsz))
-    holdout_dataset = BuildingDataset(hold_df, resize_size=(args.imgsz, args.imgsz))
+    train_dataset = BuildingDataset(train_df, classes, resize_size=(args.imgsz, args.imgsz))
+    val_dataset = BuildingDataset(val_df, classes, resize_size=(args.imgsz, args.imgsz))
+    holdout_dataset = BuildingDataset(hold_df, classes, resize_size=(args.imgsz, args.imgsz))
     test_dataset = TestDataset(test_df, resize_size=(args.imgsz, args.imgsz))
 
     train_loader = DataLoader(
@@ -118,7 +119,7 @@ def main(rank, world_size, args):
         sampler = DistributedSampler(test_dataset)
     )
 
-    model = get_maskrcnn_model(num_classes=2)
+    model = get_maskrcnn_model(num_classes=5)
     model = model.cuda()
     model = model.to(rank)
     model = DDP(model, device_ids=[rank])
@@ -130,15 +131,14 @@ def main(rank, world_size, args):
     try:
         for epoch in range(num_epochs):
             train_epoch(epoch, num_epochs, model, optimizer, train_loader, rank)
-            validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, args.score_threshold)
+            validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, args.score_threshold, classes)
             torch.cuda.empty_cache()
-        evaluate(model, holdout_loader, rank, args.score_threshold)
+        evaluate(model, holdout_loader, rank, args.score_threshold, classes)
         # predict(model, test_loader, rank, args.submission_filename, args.score_threshold)
         destroy_process_group()
     except Exception as e:
         if rank == 0:
             print(f"Error: {str(e)}")
-            evaluate(model, holdout_loader, rank, args.score_threshold)
         destroy_process_group()
     
 
@@ -147,10 +147,11 @@ if __name__ == '__main__':
     parser.add_argument("--num-workers", type=int, default=4, help="Number of workers for data loader")
     parser.add_argument("--train-batch-size", type=int, default=8, help="Batch size for training")
     parser.add_argument("--val-batch-size", type=int, default=4, help="Batch size for validation")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs to train")
+    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train")
     parser.add_argument("--imgsz", type=int, default=512, help="Image size for training")
     parser.add_argument("--submission-filename", type=str, default="submission", help="Name of submission file")
     parser.add_argument("--score-threshold", type=float, required=True, help="Score threshold for predictions")
+    parser.add_argument("--classes", type=str, nargs="+", default=["no_damage", "minor_damage", "major_damage", "destroyed"], help="Classes to predict")
     args = parser.parse_args()
     world_size = torch.cuda.device_count()
     mp.spawn(main, args=(world_size, args), nprocs=world_size)

@@ -173,10 +173,10 @@ def save_model(model, epoch, mae):
     }, "model_best.pth")
     print(f"Successfully saved model with MAE: {mae:.4f}")
 
-def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, score_threshold):    
+def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, score_threshold, classes):    
     model.eval()
     total_images = 0
-    diff_sum = 0
+    diff_sum = {class_name: 0 for class_name in classes}
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(tqdm(valid_loader)):
@@ -186,24 +186,35 @@ def validate_epoch(epoch, num_epochs, model, valid_loader, rank, MIN_LOSS, score
 
             for pred, gt in zip(predictions, targets):
                 # pred_counts = (pred["labels"] == 1).sum().item()
+                # bool_mask = pred['scores'] >= score_threshold
+                # pred_counts = (pred["labels"][bool_mask] == 1).sum().item()
+                # gt_counts = (gt["labels"] == 1).sum().item()
+                # diff = abs(pred_counts - gt_counts)
+                # diff_sum += diff
+                # total_images += 1
                 bool_mask = pred['scores'] >= score_threshold
-                pred_counts = (pred["labels"][bool_mask] == 1).sum().item()
-                gt_counts = (gt["labels"] == 1).sum().item()
-                diff = abs(pred_counts - gt_counts)
-                diff_sum += diff
+                for idx, class_name in enumerate(classes, start=1):
+                    pred_counts = (pred["labels"][bool_mask] == idx).sum().item()
+                    gt_counts = (gt["labels"] == idx).sum().item()
+                    diff = abs(pred_counts - gt_counts)
+                    diff_sum[class_name] += diff
                 total_images += 1
 
-    mae = diff_sum / total_images    
-    if (rank == 0 ) and (MIN_LOSS is None or mae < MIN_LOSS):
-        MIN_LOSS = mae
-        save_model(model, epoch, mae)  
-        print(f"GPU: {rank} Epoch [{epoch+1}/{num_epochs}] Threshold: {score_threshold} Validation MAE: {mae:.4f} Best MAE: {MIN_LOSS:.4f}\n")
+
+    class_mae = {class_name: diff_sum[class_name] / total_images for class_name in classes}
+    total_mae = sum(class_mae.values()) / len(class_mae)    
+    if (rank == 0 ) and (MIN_LOSS is None or total_mae < MIN_LOSS):
+        MIN_LOSS = total_mae
+        save_model(model, epoch, total_mae)  
+        print(f"GPU: {rank} Epoch [{epoch+1}/{num_epochs}] Threshold: {score_threshold}\
+         Validation MAE: {total_mae:.4f} Best MAE: {MIN_LOSS:.4f} "+\
+         " ".join([f"{class_name}: {mae:.4f}" for class_name, mae in class_mae.items()])+"\n")
 
 
-def evaluate(model, test_loader, rank, score_threshold):    
+def evaluate(model, test_loader, rank, score_threshold, classes):    
     model.eval()
     total_images = 0
-    diff_sum = 0
+    diff_sum = {class_name: 0 for class_name in classes}
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(tqdm(test_loader)):
@@ -213,17 +224,26 @@ def evaluate(model, test_loader, rank, score_threshold):
 
             for pred, gt in zip(predictions, targets):
                 # pred_counts = (pred["labels"] == 1).sum().item()
+                # bool_mask = pred['scores'] >= score_threshold
+                # pred_counts = (pred["labels"][bool_mask] == 1).sum().item()
+                # gt_counts = (gt["labels"] == 1).sum().item()
+                # diff = abs(pred_counts - gt_counts)
+                # diff_sum += diff
+                # total_images += 1
                 bool_mask = pred['scores'] >= score_threshold
-                pred_counts = (pred["labels"][bool_mask] == 1).sum().item()
-                gt_counts = (gt["labels"] == 1).sum().item()
-                diff = abs(pred_counts - gt_counts)
-                diff_sum += diff
-                total_images += 1
-
-    mae = diff_sum / total_images     
+                for idx, class_name in enumerate(classes, start=1):
+                    pred_counts = (pred["labels"][bool_mask] == idx).sum().item()
+                    gt_counts = (gt["labels"] == idx).sum().item()
+                    diff = abs(pred_counts - gt_counts)
+                    diff_sum[class_name] += diff
+                total_images += 1  
+    
+    class_mae = {class_name: diff_sum[class_name] / total_images for class_name in classes}
+    total_mae = sum(class_mae.values()) / len(class_mae)
     
     if rank == 0:   
-        print(f"GPU: {rank} Threshold: {score_threshold} Test MAE: {mae:.4f}\n") 
+        print(f"GPU: {rank} Threshold: {score_threshold} Test MAE: {total_mae:.4f} "+\
+        " ".join([f"{class_name}: {mae:.4f}" for class_name, mae in class_mae.items()])+"\n") 
         torch.save(model.state_dict(), f"model_last.pth")
 
 

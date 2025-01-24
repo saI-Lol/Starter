@@ -98,9 +98,10 @@ class Resize(object):
 
 
 class BuildingDataset(Dataset):
-    def __init__(self, df, resize_size=(512, 512)):
+    def __init__(self, df, classes, resize_size=(512, 512)):
         self.df = df.reset_index(drop=True)
         self.resize_size = resize_size
+        self.classes = classes
 
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
@@ -125,7 +126,9 @@ class BuildingDataset(Dataset):
 
         for annotation in annotations:
             properties = annotation["properties"]
-
+            subtype = properties["subtype"]
+            if subtype not in self.classes:
+                continue
             polygon_wkt = annotation["wkt"]
             polygon = loads(polygon_wkt)
 
@@ -138,7 +141,7 @@ class BuildingDataset(Dataset):
 
             xmin, ymin, xmax, ymax = polygon.bounds
             boxes.append([xmin, ymin, xmax, ymax])
-            labels.append(1)
+            labels.append(self.classes.index(subtype) + 1)
 
             mask = self._polygon_to_mask(polygon, width, height)
             masks.append(mask)

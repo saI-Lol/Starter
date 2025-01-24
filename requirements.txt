@@ -1,4 +1,4 @@
 pystac_client
 rasterio
 rioxarray
-torch
+torch==2.1.0+cu118
