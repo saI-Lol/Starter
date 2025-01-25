@@ -277,8 +277,7 @@ def predict(model, data_loader, rank, score_threshold, classes):
                             "xmin": xmin,
                             "ymin": ymin,
                             "xmax": xmax,
-                            "ymax": ymax,
-                            "mask": mask,
+                            "ymax": ymax
                         }
                     )
     df = pd.DataFrame(predictions)

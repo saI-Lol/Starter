@@ -135,25 +135,66 @@ def main(rank, world_size, args):
             torch.cuda.empty_cache()
         evaluate(model, holdout_loader, rank, args.score_threshold, classes)
         torch.cuda.empty_cache()
-        # predict(model, test_loader, rank, args.score_threshold, classes)
         destroy_process_group()
     except Exception as e:
         if rank == 0:
             print(f"Error: {str(e)}")
         destroy_process_group()
+
+def predict_main(rank, world_size, args):
+    ddp_setup(rank, world_size)
+    classes = args.classes
+    checkpoint = args.model_path
+    test_df = get_unlabelled_dataset('predict')
+    test_dataset = TestDataset(test_df, resize_size=(args.imgsz, args.imgsz))
+
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=args.val_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        collate_fn=test_collate_fn,
+        sampler = DistributedSampler(test_dataset)
+    )
+
+    model = get_maskrcnn_model(num_classes=len(classes) + 1)
+    model = model.cuda()
+    model = model.to(rank)
+    model = DDP(model, device_ids=[rank])
+
+    loaded_dict = checkpoint['model_state_dict']
+    sd = model.state_dict()
+    for k in model.state_dict():
+        if k in loaded_dict and sd[k].size() == loaded_dict[k].size():
+            sd[k] = loaded_dict[k]
+    loaded_dict = sd
+    model.load_state_dict(loaded_dict)
+
+    predict(model, test_loader, rank, args.score_threshold, classes)
+    destroy_process_group()
+
     
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Training Starter Notebook model")
     parser.add_argument("--num-workers", type=int, default=4, help="Number of workers for data loader")
-    parser.add_argument("--train-batch-size", type=int, default=8, help="Batch size for training")
-    parser.add_argument("--val-batch-size", type=int, default=4, help="Batch size for validation")
+    parser.add_argument("--train-batch-size", type=int, default=1, help="Batch size for training")
+    parser.add_argument("--val-batch-size", type=int, default=1, help="Batch size for validation")
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train")
     parser.add_argument("--imgsz", type=int, default=512, help="Image size for training")
     parser.add_argument("--score-threshold", type=float, required=True, help="Score threshold for predictions")
     parser.add_argument("--classes", type=str, nargs="+", default=["no_damage", "minor_damage", "major_damage", "destroyed"], help="Classes to predict")
+    parser.add_argument("--predict", action="store_true", help="Predict mode")
+    parser.add_argument("--model-path", type=str, default=None, help="Path to model")
     args = parser.parse_args()
     world_size = torch.cuda.device_count()
-    mp.spawn(main, args=(world_size, args), nprocs=world_size)
+
+    if args.predict:
+        if args.model_path is None:
+            raise ValueError("Model path is required for prediction")
+        mp.spawn(predict_main, args=(world_size, args), nprocs=world_size)
+    else:
+        mp.spawn(main, args=(world_size, args), nprocs=world_size)
 
 
