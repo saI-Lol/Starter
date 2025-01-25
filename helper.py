@@ -286,7 +286,7 @@ def predict(model, data_loader, rank, score_threshold, classes):
                     predictions.append(
                         {
                             "Image_ID": img_id,
-                            "class": "unknown",
+                            "class": "no_damage",
                             "confidence": 0,
                             "xmin": 0,
                             "ymin": 0,
