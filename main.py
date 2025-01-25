@@ -144,7 +144,7 @@ def main(rank, world_size, args):
 def predict_main(rank, world_size, args):
     ddp_setup(rank, world_size)
     classes = args.classes
-    checkpoint = args.model_path
+    checkpoint = torch.load(args.model_path, map_location='cpu')
     test_df = get_unlabelled_dataset('predict')
     test_dataset = TestDataset(test_df, resize_size=(args.imgsz, args.imgsz))
 
@@ -170,6 +170,7 @@ def predict_main(rank, world_size, args):
             sd[k] = loaded_dict[k]
     loaded_dict = sd
     model.load_state_dict(loaded_dict)
+    print("Successfully loaded checkpoint")
 
     predict(model, test_loader, rank, args.score_threshold, classes)
     destroy_process_group()
