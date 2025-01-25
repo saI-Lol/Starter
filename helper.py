@@ -12,6 +12,7 @@ import shutil
 # Data manipulation and analysis
 import numpy as np
 import pandas as pd
+from uuid import uuid4
 from tqdm import tqdm
 
 # Visualization
