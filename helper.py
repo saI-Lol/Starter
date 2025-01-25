@@ -271,6 +271,8 @@ def predict(model, data_loader, rank, score_threshold, classes):
                     for label, box, mask, score in zip(labels, boxes, masks, scores):
                         xmin, ymin, xmax, ymax = box
                         class_name = classes[label - 1]
+                        if class_name == "no_damage" and score < 0.5:
+                            continue
                         predictions.append(
                             {
                                 "Image_ID": img_id,
