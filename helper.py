@@ -267,18 +267,31 @@ def predict(model, data_loader, rank, score_threshold, classes):
                 masks = output["masks"][keep].cpu().numpy()
                 scores = scores[keep].cpu().numpy()
 
-                for label, box, mask, score in zip(labels, boxes, masks, scores):
-                    xmin, ymin, xmax, ymax = box
-                    class_name = classes[label - 1]
+                if len(labels) > 0:
+                    for label, box, mask, score in zip(labels, boxes, masks, scores):
+                        xmin, ymin, xmax, ymax = box
+                        class_name = classes[label - 1]
+                        predictions.append(
+                            {
+                                "Image_ID": img_id,
+                                "class": class_name,
+                                "confidence": score,
+                                "xmin": xmin,
+                                "ymin": ymin,
+                                "xmax": xmax,
+                                "ymax": ymax
+                            }
+                        )
+                else:
                     predictions.append(
                         {
                             "Image_ID": img_id,
-                            "class": class_name,
-                            "confidence": score,
-                            "xmin": xmin,
-                            "ymin": ymin,
-                            "xmax": xmax,
-                            "ymax": ymax
+                            "class": "unknown",
+                            "confidence": 0,
+                            "xmin": 0,
+                            "ymin": 0,
+                            "xmax": 0,
+                            "ymax": 0
                         }
                     )
     df = pd.DataFrame(predictions)
