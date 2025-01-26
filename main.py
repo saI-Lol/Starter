@@ -119,7 +119,7 @@ def main(rank, world_size, args):
         sampler = DistributedSampler(test_dataset)
     )
 
-    model = get_maskrcnn_model(num_classes=len(classes) + 1)
+    model = get_maskrcnn_model(num_classes=len(classes) + 1, hidden_layer=args.hidden_layer)
     model = model.cuda()
     model = model.to(rank)
     model = DDP(model, device_ids=[rank])
@@ -184,6 +184,7 @@ if __name__ == '__main__':
     parser.add_argument("--val-batch-size", type=int, default=1, help="Batch size for validation")
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train")
     parser.add_argument("--imgsz", type=int, default=512, help="Image size for training")
+    parser.add_argument("--hidden-layer", type=int, default=256, help="Hidden layer size for model")
     parser.add_argument("--score-threshold", type=float, required=True, help="Score threshold for predictions")
     parser.add_argument("--classes", type=str, nargs="+", default=["no_damage", "minor_damage", "major_damage", "destroyed"], help="Classes to predict")
     parser.add_argument("--predict", action="store_true", help="Predict mode")
