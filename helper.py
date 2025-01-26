@@ -154,17 +154,21 @@ def train_epoch(epoch, num_epochs, model, optimizer, train_loader, rank):
             for t in targets
         ]
         
-        with autocast(device_type=device):
-            losses_dict = model(imgs, targets)
-            losses = sum(loss for loss in losses_dict.values())
+        # with autocast(device_type=device):
+        #     losses_dict = model(imgs, targets)
+        #     losses = sum(loss for loss in losses_dict.values())
+        losses_dict = model(imgs, targets)
+        losses = sum(loss for loss in losses_dict.values())
 
         del imgs, targets, batch
         iterator.set_description(f"GPU: {rank} Epoch [{epoch+1}/{num_epochs}] Loss: {losses.item():.4f}")
 
         optimizer.zero_grad()
-        scaler.scale(losses).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        # scaler.scale(losses).backward()
+        # scaler.step(optimizer)
+        # scaler.update()
+        losses.backward()
+        optimizer.step()
 
 def save_model(model, epoch, mae):
     torch.save({
@@ -297,5 +301,5 @@ def predict(model, data_loader, rank, score_threshold, classes):
                         }
                     )
     df = pd.DataFrame(predictions)
-    sub_id = ''.join(str(uuid4()).split("-")[:3]) + f'_{rank}_' + '_'.join(classes) + '.csv'
+    sub_id = ''.join(str(uuid4()).split("-")[:3]) + '.csv'
     df.to_csv(sub_id, index=False)
